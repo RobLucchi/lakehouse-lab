@@ -8,11 +8,22 @@ services:
       - MINIO_ROOT_USER=minioadmin
       - MINIO_ROOT_PASSWORD=minioadmin
     ports:
-      - "9000:9000"
-      - "9090:9090"
+      - "9000:9000"   # S3 endpoint
+      - "9090:9090"   # MinIO web console
     command: server /data --console-address ":9090"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/ready"]
       interval: 30s
       timeout: 20s
       retries: 3
+
+  trino:
+    image: trinodb/trino:latest
+    container_name: trino
+    depends_on:
+      - minio
+    ports:
+      - "8080:8080"
+    volumes:
+      # We mount a local folder "trino/etc" into container's "/etc/trino"
+      - ./trino/etc/:/etc/trino
