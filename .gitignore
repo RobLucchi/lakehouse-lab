@@ -1,2 +1,4 @@
 lakehouse-lab-env
 .env
+data/postgres
+local-metastore

@@ -1,4 +1,4 @@
-version: '3.7'
+version: "3.7"
 
 services:
   minio:
@@ -16,14 +16,87 @@ services:
       interval: 30s
       timeout: 20s
       retries: 3
+  postgresdb:
+    # Postgres Image
+    image: postgres
+    # This is the Postgres server hostname
+    hostname: metastore_db
+    # ports:
+      # this is optional only in case you wish to expose the Postgres port
+      #- '5432:5432'
+    # In case of service/container crash, the container will restart.
+    restart: always
+    environment:
+      # Specify the username that will be created in the Postgres DB. 
+      # You can change this to any username you prefer.
+      POSTGRES_USER: hive
+      
+      # Set password for the Postgres user. Change this to a more complex password.
+      POSTGRES_PASSWORD: hive
+      
+      # Name of the database created in Postgres. You can modify this name if desired.
+      POSTGRES_DB: metastore
+    volumes:
+      # Postgres DB data will be saved on the Linux box under /data/postgres.
+      # You can change the host path if you want to store the data in a different location.
+      - /data/postgres:/var/lib/postgresql/data
 
-  trino:
-    image: trinodb/trino:latest
-    container_name: trino
+  hive-metastore:
+    # This is the Hive Metastore service
+    image: 'starburstdata/hive:3.1.2-e.18'
+    # This is the hive server hostname
+    hostname: hive-metastore
+    ports:
+      # Expose Metastore Thrift service on port 9083.
+      - '9083:9083'
+    # In case of service/container crash, the container will restart.
+    restart: always
     depends_on:
       - minio
+      - postgresdb
+    environment:
+      HIVE_METASTORE_DRIVER: org.postgresql.Driver
+      HIVE_METASTORE_JDBC_URL: jdbc:postgresql://metastore_db:5432/metastore
+      HIVE_METASTORE_USER: hive
+      HIVE_METASTORE_PASSWORD: hive
+      HIVE_METASTORE_WAREHOUSE_DIR: s3://spark-delta-lake/
+      S3_ENDPOINT: http://localhost:9000
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      S3_PATH_STYLE_ACCESS: "true"
+      REGION: ""
+
+      # Following fields are placeholders for integration with other cloud services like Google Cloud and Azure.
+      # These can be left blank unless you're using one of those services.
+      GOOGLE_CLOUD_KEY_FILE_PATH: ""
+      AZURE_ADL_CLIENT_ID: ""
+      AZURE_ADL_CREDENTIAL: ""
+      AZURE_ADL_REFRESH_URL: ""
+      AZURE_ABFS_STORAGE_ACCOUNT: ""
+      AZURE_ABFS_ACCESS_KEY: ""
+      AZURE_WASB_STORAGE_ACCOUNT: ""
+      AZURE_ABFS_OAUTH: ""
+      AZURE_ABFS_OAUTH_TOKEN_PROVIDER: ""
+      AZURE_ABFS_OAUTH_CLIENT_ID: ""
+      AZURE_ABFS_OAUTH_SECRET: ""
+      AZURE_ABFS_OAUTH_ENDPOINT: ""
+      AZURE_WASB_ACCESS_KEY: ""
+
+      # Define Hive Metastore admin role. You can change the role if needed.
+      HIVE_METASTORE_USERS_IN_ADMIN_ROLE: "admin"
+    healthcheck:
+      # Health check to confirm if the Hive Metastore is running on port 9083.
+      test: bash -c "exec 6<> /dev/tcp/localhost/9083"
+
+  trino-coordinator:
+    # Trino coordinator service
+    image: 'trinodb/trino:400'
+    hostname: trino-coordinator
+    restart: always
+    depends_on:
+      - minio
+      - postgresdb
     ports:
-      - "8080:8080"
+      - '8080:8080'
     volumes:
-      # We mount a local folder "trino/etc" into container's "/etc/trino"
-      - ./trino/etc/:/etc/trino
+      - ./data/trino/etc:/etc/trino
