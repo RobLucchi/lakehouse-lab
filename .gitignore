@@ -2,3 +2,4 @@ lakehouse-lab-env
 .env
 data/postgres
 local-metastore
+trino-cli-400-executable.jar
